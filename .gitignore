@@ -3,7 +3,6 @@ env
 DOCUMENT_PORTAL.egg-info
 venv/
 __pycache__/
-logs/
 *.pyc 
 data/
 test.py
