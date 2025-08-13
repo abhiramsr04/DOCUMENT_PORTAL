@@ -1,6 +1,6 @@
 import os
-import fitz
 import uuid
+import fitz
 from datetime import datetime
 from logs.custom_logger import CustomLogger
 from exception.custom_exception import DocumentPortalException
@@ -24,25 +24,59 @@ class DocumentHandler:
             raise DocumentPortalException("Error in initializing DocumentHandler",e) from e
         
         
-    def save_pdf(self, pdf_data):
+    def save_pdf(self, uploaded_file):
         try:
-            pdf_path = os.path.join(self.data_dir, f"{self.session_id}.pdf")
-            with open(pdf_path,'wb') as f:
-                f.write(pdf_data)
-            self.log.info(f"PDF saved successfully: {pdf_path}")
+            filename = os.path.basename(uploaded_file.name)
+            if not filename.lower().endswith(".pdf"):
+                raise DocumentPortalException("Invalid filetype Only PDF files are allowed.")
+            save_path = os.path.join(self.session_path, filename)
+            with open(save_path, "wb") as file:
+                file.write(uploaded_file.getbuffer())
+                
+            self.log.info("PDF Saved to Session Path", file=filename, save_path=save_path, session_id=self.session_id)
+            return save_path
+
         except DocumentPortalException as e:
             self.log.error(f"Error in saving PDF", exception=e, session_id=self.session_id)
             raise DocumentPortalException("Error in saving PDF",e) from e
 
                 
-    def read_pdf(self):
+    def read_pdf(self, pdf_filepath:str)->str:
         try:
-            pass
+            text_chunks = []
+            with fitz.open(pdf_filepath) as doc:
+                for page_num, page in enumerate(doc,start=1):
+                    text_chunks.append(f"\n---- Page {page_num} ----\n{page.get_text()}")
+                    
+            text = "\n".join(text_chunks)
+            self.log.info("PDF Read Successfully", pdf_filepath=pdf_filepath, session_id=self.session_id, pages = len(text_chunks))
+            return text
         except Exception as e:
             self.log.error(f"Error in reading PDF", exception=e, session_id=self.session_id)
             raise DocumentPortalException("Error in reading PDF",e) from e
 
 if __name__ == "__main__":
-    document_handler = DocumentHandler()
-    print(f"session_id: {document_handler.session_id}")
-    print(f"Session_path: {document_handler.session_path}")
+    from pathlib import Path
+    from io import BytesIO
+    
+    pdf_filepath = r"D:\\Agentic AI\\projects\\DOCUMENT_PORTAL\\data\\document_analysis\\NIPS-2017-attention-is-all-you-need-Paper.pdf"
+    
+    class DummyFile:
+        def __init__(self,file_path):
+            self.name = Path(file_path).name
+            self._file_path = file_path
+        def getbuffer(self):
+            return open(self._file_path, "rb").read()
+        
+        
+    dummy_pdf = DummyFile(pdf_filepath)
+    handler = DocumentHandler(session_id="test_session")
+    try:
+        saved_path = handler.save_pdf(dummy_pdf)
+        print(saved_path)
+        
+        content = handler.read_pdf(saved_path)
+        print(content[:500])
+        
+    except Exception as e:
+        print(f"Error: {e}")
